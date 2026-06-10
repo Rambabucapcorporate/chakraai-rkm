@@ -49,6 +49,13 @@ collection = chroma_client.get_or_create_collection(
 )
 
 
+# ================== vLLM CLIENT (primary text engine) ==================
+# Reusable client to the local vLLM server (OpenAI-compatible API).
+# vLLM does PagedAttention + continuous batching, so many concurrent chats
+# share the GPU instead of queueing the way Ollama does.
+_vllm_client = OpenAI(base_url=settings.VLLM_BASE_URL, api_key="not-needed")
+
+
 # ================== HELPER FUNCTIONS ==================
 
 def load_subject_files(book_list):
@@ -214,12 +221,11 @@ def generate_response_stream(final_prompt, image_bytes, retrieved_chunks_info, r
         "temperature": 0.8, 
         "top_p": 0.9,
         "num_ctx": 4096,
-        "num_gpu": 99,  # Explicitly offload all layers to GPU if available
     }
 
     # Start OpenAI query in a background thread if raw_query is provided
     openai_future = None
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=100)
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
     def fetch_openai_response(q):
         if not settings.OPENAI_API_KEY:
@@ -267,32 +273,46 @@ def generate_response_stream(final_prompt, image_bytes, retrieved_chunks_info, r
     if raw_query:
         openai_future = executor.submit(fetch_openai_response, raw_query)
 
-    target_model = settings.OLLAMA_TEXT_MODEL
-    if image_bytes:
-        target_model = settings.OLLAMA_VISION_MODEL
-        print(f"[Chat] Image detected, switching to model: {target_model}")
-
     full_content = ""
-    
-    message = {'role': 'user', 'content': final_prompt}
-    if image_bytes:
-        message['images'] = [image_bytes]
 
     try:
-        stream = ollama.chat(
-            model=target_model,
-            messages=[message],
-            stream=True,
-            options=gen_options
-        )
-        
-        for chunk in stream:
-            content = chunk["message"]["content"]
-            full_content += content
-            yield json.dumps({"token": content}) + "\n"
+        if image_bytes:
+            # ---- RARE path: vision queries stay on Ollama (qwen2.5vl) ----
+            target_model = settings.OLLAMA_VISION_MODEL
+            print(f"[Chat] Image detected, using vision model: {target_model}")
+            message = {'role': 'user', 'content': final_prompt, 'images': [image_bytes]}
+            stream = ollama.chat(
+                model=target_model,
+                messages=[message],
+                stream=True,
+                options=gen_options,
+            )
+            for chunk in stream:
+                content = chunk["message"]["content"]
+                full_content += content
+                yield json.dumps({"token": content}) + "\n"
+        else:
+            # ---- HOT path: text queries via local vLLM (continuous batching) ----
+            # OpenAI-compatible streaming. max_tokens caps verbose answers so one
+            # request can't monopolise the batch. enable_thinking=False keeps
+            # Qwen3 from emitting reasoning tokens, cutting chat latency.
+            stream = _vllm_client.chat.completions.create(
+                model=settings.VLLM_TEXT_MODEL,
+                messages=[{"role": "user", "content": final_prompt}],
+                temperature=0.8,
+                top_p=0.9,
+                max_tokens=settings.VLLM_MAX_TOKENS,
+                stream=True,
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full_content += delta
+                    yield json.dumps({"token": delta}) + "\n"
     except Exception as e:
-        print(f"[Chat] Ollama streaming failed: {e}")
-        # Yield a clear fallback token so the UI knows Ollama failed
+        print(f"[Chat] Primary LLM streaming failed: {e}")
+        # Yield a clear fallback token so the UI knows the engine failed
         fallback_msg = "I couldn't find any relevant information in the uploaded notes for that query (Primary AI/notes engine is currently busy or unavailable)."
         yield json.dumps({"token": fallback_msg}) + "\n"
 

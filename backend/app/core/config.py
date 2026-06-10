@@ -33,8 +33,13 @@ class Settings:
 
     # LLM Models
     EMBED_MODEL_NAME: str = "text-embedding-3-small"
-    OLLAMA_TEXT_MODEL: str = "qwen3:4b"
-    OLLAMA_VISION_MODEL: str = "qwen2.5vl:7b"
+    OLLAMA_TEXT_MODEL: str = "qwen3:4b"          # kept as fallback for text
+    OLLAMA_VISION_MODEL: str = "qwen2.5vl:7b"    # vision (rare) stays on Ollama
+
+    # vLLM (primary text engine — OpenAI-compatible, local, continuous batching)
+    VLLM_BASE_URL: str = os.getenv("VLLM_BASE_URL", "http://127.0.0.1:8001/v1")
+    VLLM_TEXT_MODEL: str = os.getenv("VLLM_TEXT_MODEL", "qwen3-4b")
+    VLLM_MAX_TOKENS: int = int(os.getenv("VLLM_MAX_TOKENS", "1200"))
 
     # Embeddings
     EMBEDDINGS_DIRECTORY: str = "."
