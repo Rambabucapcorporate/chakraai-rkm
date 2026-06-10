@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+chromadb
+ollama
+google-generativeai
+pydantic[email]
+sqlalchemy
+python-dotenv
+pymysql
+passlib[bcrypt]
+PyJWT>=2.8.0
+python-multipart
+openai

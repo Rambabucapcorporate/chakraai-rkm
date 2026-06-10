@@ -1,0 +1,264 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ramakrishna Mission Vivekananda College Design System
+   Academic, sophisticated with deep red/orange gradient theme
+   All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 30 20% 98%;
+    --foreground: 0 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 20% 15%;
+
+    /* Deep red primary - inspired by college colors */
+    --primary: 0 72% 42%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Orange accent */
+    --secondary: 24 95% 48%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 30 15% 94%;
+    --muted-foreground: 0 10% 45%;
+
+    /* Warm accent */
+    --accent: 24 80% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 0 72% 42%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar styling */
+    --sidebar-background: 0 20% 12%;
+    --sidebar-foreground: 30 20% 95%;
+    --sidebar-primary: 24 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 25% 20%;
+    --sidebar-accent-foreground: 30 20% 95%;
+    --sidebar-border: 0 20% 18%;
+    --sidebar-ring: 24 95% 55%;
+
+    /* Custom tokens */
+    --gradient-start: 24 95% 48%;
+    --gradient-mid: 0 72% 42%;
+    --gradient-end: 0 64% 31%;
+
+    /* Glass effect */
+    --glass-bg: 0 0% 100% / 0.7;
+    --glass-border: 0 0% 100% / 0.3;
+
+    /* Success state */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    --background: 0 20% 8%;
+    --foreground: 30 20% 95%;
+
+    --card: 0 20% 12%;
+    --card-foreground: 30 20% 95%;
+
+    --popover: 0 20% 12%;
+    --popover-foreground: 30 20% 95%;
+
+    --primary: 24 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 72% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 20% 18%;
+    --muted-foreground: 30 15% 60%;
+
+    --accent: 24 80% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 20% 20%;
+    --input: 0 20% 20%;
+    --ring: 24 95% 55%;
+
+    --sidebar-background: 0 20% 6%;
+    --sidebar-foreground: 30 20% 95%;
+    --sidebar-primary: 24 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 25% 15%;
+    --sidebar-accent-foreground: 30 20% 95%;
+    --sidebar-border: 0 20% 12%;
+    --sidebar-ring: 24 95% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer components {
+
+  /* Primary gradient - deep red to orange */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-secondary via-primary to-primary;
+  }
+
+  .gradient-primary-vertical {
+    @apply bg-gradient-to-b from-secondary via-primary to-[#821c1c];
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-secondary via-primary to-[#821c1c] bg-clip-text text-transparent;
+  }
+
+  /* Glassmorphism card */
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-white/30 shadow-xl;
+  }
+
+  .glass-card-dark {
+    @apply bg-black/20 backdrop-blur-xl border border-white/10;
+  }
+
+  /* Elegant shadow */
+  .shadow-elegant {
+    box-shadow:
+      0 4px 6px -1px hsl(0 72% 42% / 0.1),
+      0 10px 20px -5px hsl(0 72% 42% / 0.15),
+      0 25px 50px -12px hsl(0 20% 15% / 0.25);
+  }
+
+  /* File explorer item hover */
+  .file-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-200;
+    @apply hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+  }
+
+  .file-item-selected {
+    @apply bg-sidebar-primary/20 text-sidebar-primary border-l-2 border-sidebar-primary;
+  }
+
+  /* Quote styling */
+  .quote-text {
+    @apply italic text-sm text-muted-foreground leading-relaxed;
+  }
+
+  /* Button gradient hover effect */
+  .btn-gradient {
+    @apply relative overflow-hidden transition-all duration-300;
+  }
+
+  .btn-gradient::before {
+    content: '';
+    @apply absolute inset-0 bg-white/20 translate-y-full transition-transform duration-300;
+  }
+
+  .btn-gradient:hover::before {
+    @apply translate-y-0;
+  }
+
+  /* Input focus ring */
+  .input-focus {
+    @apply focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-200;
+  }
+}
+
+@layer utilities {
+
+  /* Smooth scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-pulse-subtle {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes pulseSoft {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.7;
+    }
+  }
+}
