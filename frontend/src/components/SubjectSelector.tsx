@@ -128,6 +128,8 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
         "Strategic Management",
         "Capital Markets & Investment Management",
         "Business Research Methods",
+      ],
+      "Semester 6": [
         "Business Communications and Managerial Skills",
         "Business Finance",
         "Business Taxation"
@@ -137,18 +139,22 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
   "Bachelor of Commerce (Computer Applications)": {
     "1st Year": {
       "Semester 1": [
-        "Computer Application in E-commerce"
+        "Computer Application in E-commerce",
+        "Essentails of Business Economy",
+        "Financial Accounting and Accounting Standard"
       ],
       "Semester 2": [
         "Corporate Accounting And Audting",
-        "Office Automation Package"
+        "Office Automation Package",
+        "Modern Business Communication"
       ]
     },
     "2nd Year": {
       "Semester 3": [
         "Modern Management Techniques",
         "Quantitative Applications for Business-1",
-        "Relational Database Management System"
+        "Relational Database Management System",
+        "Programming in Java"
       ],
       "Semester 4": [
         "Data Analytics with R Programming",
@@ -170,7 +176,7 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
         "Computerized Accounting Application",
         "Blockchain Technology in Cryptocurrency",
         "Entrepreneurial Development",
-        "Goods & Service Tax ",
+        //"Goods & Service Tax ",
         "Banking and financial Service"
       ]
     }
@@ -213,7 +219,7 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
         "R Programming (T+P)",
         "Deep Learning",
         "IoT",
-        "GEN AI"
+        "Python"
       ]
     }
   },
@@ -224,7 +230,8 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
         "Operating Systems (T+P)"
       ],
       "Semester 2": [
-        "Data Structures and Algorithms (T+P)"
+        "Data Structures and Algorithms (T+P)",
+        "Object Oriented Programming (T+P)"
       ]
     },
     "2nd Year": {
@@ -250,7 +257,7 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
       "Semester 6": [
         "Internet of Things (IoT)",
         "Big Data Analytics",
-        "Cloud Computing",
+        "Python",
         "R Programming (T+P)",
         "Deep Learning"
       ]
@@ -308,11 +315,12 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
       "Semester 1": [
         "ADVANCED ACCOUNTANCY I & II",
         "BUSINESS REGULATORY FRAMEWORK",
-        "Mercantile & Contract Law"
+        "QUANTITATIVE & MANAGEMENT TECHNIQUES - I & II"
       ],
       "Semester 2": [
         "ECONOMIC & COMMERCIAL LAWS",
-        "ADVANCED ACCOUNTANCY I & II"
+        "ADVANCED ACCOUNTANCY I & II",
+        "QUANTITATIVE & MANAGEMENT TECHNIQUES - I & II"
       ]
     },
     "2nd Year": {
@@ -332,7 +340,7 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
       "Semester 5": [
         "ELEMENTS OF BUSINESS TAXATION",
         "ENTREPRENEURSHIP & SMALL BUSINESS MANAGEMENT",
-        "INDUSTRIAL & LABOUR LAWS",
+       " PRINCIPLES OF INCOME TAX I & II",
         "PRINCIPLES OF COSTING"
       ],
       "Semester 6": [
@@ -346,16 +354,68 @@ const ACADEMIC_CONFIG: Record<string, Record<string, Record<string, string[]>>> 
   "Bachelor of Commerce (ISM)": {
     "1st Year": {
       "Semester 1": [
-        "Financial Accounting"
+        "Financial Accounting and IFRS",
+        "Programming using C & C++",
+        "Managerial Behaviour"
       ],
       "Semester 2": [
-        "Corporate Accounting"
+        "Corporate Accounting",
+        "Quantative Technique",
+        "Java Programming(T+P)",
+        "Company Accounts and Auditing"
+      ]
+    },
+    "2nd Year": {
+      "Semester 3": [
+        "Statistics for Business Decision Making",
+        "PHP Programming (T+P)",
+        "Relational Database Management System (T+ P)",
+        "Digital Business and Marketing"
+      ],
+      "Semester 4": [
+        "Cost and Management Accounting"
       ]
     },
     "3rd Year": {
       "Semester 5": [
-        "Direct Taxation"
+        "Direct Taxation",
+        "Information System in Supply Chain Management",
+        "Data Mining Concepts and Techniques",
+        "Direct Taxes",
+        "Indirect Taxation"
+      ],
+      "Semester 6": [
+        "Entrepreneurial Development",
+        "Research Project and Viva Voce",
+        "Big Data Analytics using R",
+        "Business Research Methods",
       ]
+    }
+  },
+  "Bachelor of Data Analytics": {
+    "1st Year": {
+      "Semester 1": [
+       "Principles of Programming using Python"
+      ],
+      "Semester 2": [
+       "Files and Data Structures",
+       "OOPS With JAVA"
+      ]
+    },
+    "2nd Year": {
+      "Semester 3": [
+        "Database Management Systems",
+        "Introduction to Machine Learning"
+      ],
+      "Semester 4": [
+        "Deep Learning"
+      ]
+    },
+    "3rd Year": {
+      "Semester 5": [
+        "DATA WAREHOUSING AND DATA MINING"
+      ]
+      
     }
   }
 };
@@ -369,7 +429,8 @@ const branches = [
   "Bachelor of Computer Science",
   "Bachelor of Commerce (Banking Management)",
   "Bachelor of Commerce (CS)",
-  "Bachelor of Commerce (ISM)"
+  "Bachelor of Commerce (ISM)",
+  "Bachelor of Data Analytics"
 ];
 
 const SubjectSelector = () => {

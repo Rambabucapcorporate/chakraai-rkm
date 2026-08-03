@@ -15,10 +15,13 @@ import {
   MicOff,
   Image as ImageIcon,
   X,
-  Paperclip
+  Paperclip,
+  ThumbsUp,
+  ThumbsDown
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import { API_BASE_URL } from "@/lib/api";
+import { API_BASE_URL, CHAT_TIMEOUT_MS } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Add global declaration for SpeechRecognition
 declare global {
@@ -35,8 +38,21 @@ interface Message {
   timestamp: Date;
   image?: string; // Base64 string for preview
   suggestedQuestions?: string[];
-  addlAi?: string;
+  // string (demo /api/chat_rag) or per-book object (main /api/chat)
+  citations?: (string | { source: string; page: number | string; text: string; pdf: boolean })[];
+  chatId?: number;      // chat_log row id, returned when the answer completes
+  feedback?: number;    // 1 = thumbs up, -1 = thumbs down (for RL/quality)
 }
+
+// Turn inline citations the model emits — "[source, page 502]" or "[source, p. 502]" —
+// into clickable deep-links to the book PDF. Only the "page N" part becomes the link;
+// CommonMark leaves the surrounding "[source, … ]" as literal text, so the citation
+// keeps its original look. No match → the text is returned unchanged.
+const linkifyCitations = (text: string): string =>
+  text.replace(
+    /\[\s*source\s*,\s*p(?:age|\.)\s*(\d+)\s*\]/gi,
+    (_m, pg) => `[source, [page ${pg}](${API_BASE_URL}/api/book_pdf#page=${pg})]`,
+  );
 
 const Chat = () => {
   const [searchParams] = useSearchParams();
@@ -49,6 +65,11 @@ const Chat = () => {
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]); // New state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // --- one-book RAG demo: gated to the `demo` login ---
+  const { user } = useAuth();
+  const isDemo = (user as any)?.username === "demo";
+  const [progress, setProgress] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -179,6 +200,7 @@ const Chat = () => {
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
+    setProgress(null); // reset RAG progress steps
     setSuggestedQuestions([]); // Clear previous questions
 
     // Prepare assistant message ID but don't add to state yet
@@ -199,12 +221,16 @@ const Chat = () => {
     // Clear image selection after sending
     clearImage();
 
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), CHAT_TIMEOUT_MS);
+
     try {
-      // const response = await fetch('https://apichakra.rkmvc.ac.in/api/chat', {
-      const response = await fetch(`${API_BASE_URL}/api/chat`, {
+      const _authToken = localStorage.getItem("access_token");
+      const response = await fetch(`${API_BASE_URL}${isDemo ? "/api/chat_rag" : "/api/chat"}`, {
         method: 'POST',
-        // Headers are automatically set for FormData, do NOT set Content-Type manually
+        headers: _authToken ? { Authorization: `Bearer ${_authToken}` } : undefined,
         body: formData,
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -240,6 +266,7 @@ const Chat = () => {
               if (isFirstChunk) {
                 // Initialize message on first token
                 setIsLoading(false);
+                setProgress(null); // clear RAG steps once the answer starts
                 const assistantMessage: Message = {
                   id: assistantMessageId,
                   role: "assistant",
@@ -268,12 +295,22 @@ const Chat = () => {
                     : msg
                 )
               );
-            } else if (data.addl_ai || data.AddlAI) {
-              const addlAiContent = data.addl_ai || data.AddlAI;
+            } else if (data.status) {
+              // one-book RAG progress: "Step 1 of 3) ...", etc.
+              setProgress(data.status);
+            } else if (data.citations) {
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === assistantMessageId
-                    ? { ...msg, addlAi: addlAiContent }
+                    ? { ...msg, citations: data.citations }
+                    : msg
+                )
+              );
+            } else if (data.chat_id) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMessageId
+                    ? { ...msg, chatId: data.chat_id }
                     : msg
                 )
               );
@@ -287,26 +324,31 @@ const Chat = () => {
     } catch (error) {
       console.error('Error fetching chat response:', error);
 
-      // If error happens before we started streaming, add error message
+      const isTimeout = error instanceof Error && error.name === "AbortError";
+      const errorText = isTimeout
+        ? `The request timed out after ${Math.round(CHAT_TIMEOUT_MS / 60000)} minutes. The server may be handling high traffic — please try again in a moment.`
+        : "Sorry, I encountered an error connecting to the knowledge base. Please ensure the backend server is running.";
+
       setMessages((prev) => {
         const messageExists = prev.some(msg => msg.id === assistantMessageId);
         if (messageExists) {
           return prev.map((msg) =>
             msg.id === assistantMessageId
-              ? { ...msg, content: msg.content + "\n\n[Error: Connection interrupted]" }
+              ? { ...msg, content: msg.content + `\n\n[Error: ${isTimeout ? "Request timed out" : "Connection interrupted"}]` }
               : msg
           );
         } else {
           const errorMessage: Message = {
             id: assistantMessageId,
             role: "assistant",
-            content: "Sorry, I encountered an error connecting to the knowledge base. Please ensure the backend server is running.",
+            content: errorText,
             timestamp: new Date(),
           };
           return [...prev, errorMessage];
         }
       });
     } finally {
+      clearTimeout(timeoutId);
       setIsLoading(false);
     }
   };
@@ -315,6 +357,32 @@ const Chat = () => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    }
+  };
+
+  // Thumbs up/down on an answer — recorded against the chat_log row for RL/quality.
+  const sendFeedback = async (messageId: string, chatId: number, rating: number) => {
+    // toggle off if the same rating is clicked again
+    let next = rating;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        next = m.feedback === rating ? 0 : rating;
+        return { ...m, feedback: next === 0 ? undefined : next };
+      })
+    );
+    try {
+      const tok = localStorage.getItem("access_token");
+      const fd = new FormData();
+      fd.append("chat_id", String(chatId));
+      fd.append("rating", String(next));
+      await fetch(`${API_BASE_URL}/api/feedback`, {
+        method: "POST",
+        headers: tok ? { Authorization: `Bearer ${tok}` } : undefined,
+        body: fd,
+      });
+    } catch (e) {
+      console.error("feedback failed", e);
     }
   };
 
@@ -517,36 +585,51 @@ const Chat = () => {
 
                             // 2. Split content to separate references
                             const parts = contentToRender.split("### 📚 Reference Chunks");
-                            const mainContent = parts[0];
+                            const mainContent = linkifyCitations(parts[0]);
                             // Clean up references text if it exists, otherwise empty
                             const referencesContent = parts.length > 1 ? "### 📚 Reference Chunks" + parts[1] : "";
 
                             return (
                               <div className="space-y-4">
-                                {message.addlAi ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 split-responses animate-fade-in">
-                                    {/* Primary AI Response */}
-                                    <div className="space-y-2">
-                                      <div className="flex items-center gap-1.5 text-xs font-bold text-primary/70 uppercase tracking-wider mb-2">
-                                        <Bot className="h-3.5 w-3.5 text-blue-500" />
-                                        <span>Primary AI</span>
-                                      </div>
-                                      <MarkdownRenderer content={mainContent} />
+                                <MarkdownRenderer content={mainContent} />
+
+                                {message.citations && message.citations.length > 0 && (
+                                  <div className="mt-4 space-y-2 animate-fade-in">
+                                    <div className="flex items-center gap-2 text-xs font-semibold text-primary/70 uppercase tracking-wider ml-1">
+                                      <BookOpen className="h-3 w-3" />
+                                      <span>Sources</span>
                                     </div>
-                                    
-                                    {/* Additional AI Response */}
-                                    <div className="border-t md:border-t-0 md:border-l border-border/60 pt-4 md:pt-0 md:pl-6 space-y-2">
-                                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">
-                                        <Sparkles className="h-3.5 w-3.5 animate-pulse text-indigo-500" />
-                                        <span>Additional AI</span>
-                                      </div>
-                                      <div className="markdown-addl-ai text-sm text-foreground/90 leading-relaxed">
-                                        <MarkdownRenderer content={message.addlAi} />
-                                      </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {message.citations.map((c: any, i) => {
+                                        // Demo endpoint sends strings ("<book>, p.N"); main endpoint sends
+                                        // objects ({source, page, text, pdf}). Handle both.
+                                        const isObj = c && typeof c === "object";
+                                        const page = isObj ? c.page : /p\.(\d+)/.exec(c)?.[1];
+                                        const source = isObj ? c.source : undefined;
+                                        const canLink = isObj ? !!c.pdf : !!page;
+                                        const href = canLink && page != null
+                                          ? `${API_BASE_URL}/api/book_pdf${source ? `?source=${encodeURIComponent(source)}` : ""}#page=${page}`
+                                          : undefined;
+                                        const tip = isObj ? `${c.source} — page ${page}` : `Open the book at page ${page}`;
+                                        return href ? (
+                                          <a
+                                            key={i}
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title={tip}
+                                            className="text-xs px-2.5 py-1 rounded-full border border-border/60 bg-muted/30 text-foreground/70 hover:bg-primary/10 hover:border-primary/40 hover:text-primary cursor-pointer transition-colors inline-flex items-center gap-1"
+                                          >
+                                            <BookOpen className="h-3 w-3" /> Page {page}
+                                          </a>
+                                        ) : (
+                                          <span key={i} title={tip} className="text-xs px-2.5 py-1 rounded-full border border-border/60 bg-muted/30 text-foreground/70 inline-flex items-center gap-1">
+                                            <BookOpen className="h-3 w-3" /> {isObj ? `Page ${page}` : c}
+                                          </span>
+                                        );
+                                      })}
                                     </div>
                                   </div>
-                                ) : (
-                                  <MarkdownRenderer content={mainContent} />
                                 )}
 
                                 {message.suggestedQuestions && message.suggestedQuestions.length > 0 && (
@@ -597,7 +680,7 @@ const Chat = () => {
                       </div>
 
                       {message.role === "assistant" && (
-                        <div className="absolute -bottom-6 left-0 flex gap-2">
+                        <div className="absolute -bottom-6 left-0 flex items-center gap-2">
                           <button
                             onClick={() => {
                               const cleanText = message.content.split("### 📚 Reference Chunks")[0];
@@ -609,6 +692,25 @@ const Chat = () => {
                             <Volume2 className="h-3.5 w-3.5" />
                             <span className="text-xs">Read</span>
                           </button>
+
+                          {message.chatId && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => sendFeedback(message.id, message.chatId!, 1)}
+                                title="Good answer"
+                                className={`p-1 rounded-md transition-colors hover:bg-muted/50 ${message.feedback === 1 ? "text-green-600" : "text-muted-foreground hover:text-foreground"}`}
+                              >
+                                <ThumbsUp className={`h-3.5 w-3.5 ${message.feedback === 1 ? "fill-current" : ""}`} />
+                              </button>
+                              <button
+                                onClick={() => sendFeedback(message.id, message.chatId!, -1)}
+                                title="Bad answer"
+                                className={`p-1 rounded-md transition-colors hover:bg-muted/50 ${message.feedback === -1 ? "text-red-600" : "text-muted-foreground hover:text-foreground"}`}
+                              >
+                                <ThumbsDown className={`h-3.5 w-3.5 ${message.feedback === -1 ? "fill-current" : ""}`} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -629,7 +731,7 @@ const Chat = () => {
                     <div className="bg-card border border-border/60 rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm">
                       <div className="flex items-center gap-2.5">
                         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                        <span className="text-sm font-medium text-muted-foreground">Thinking...</span>
+                        <span className="text-sm font-medium text-muted-foreground">{progress || "Thinking..."}</span>
                       </div>
                     </div>
                   </div>

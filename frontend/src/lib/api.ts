@@ -2,6 +2,10 @@
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+/** Chat stream timeout — 5 min default; increase for peak load / queue wait */
+export const CHAT_TIMEOUT_MS =
+  Number(import.meta.env.VITE_CHAT_TIMEOUT_MS) || 5 * 60 * 1000;
+
 // Helper for making fetch requests with Auth header if needed
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = localStorage.getItem("access_token");
@@ -56,5 +60,12 @@ export const api = {
       return res.json();
     },
     getMe: () => fetchWithAuth("/api/auth/me"),
+  },
+  admin: {
+    stats: () => fetchWithAuth("/api/admin/stats"),
+    gpu: () => fetchWithAuth("/api/admin/gpu"),
+    users: (qs = "") => fetchWithAuth(`/api/admin/users${qs}`),
+    chats: (qs = "") => fetchWithAuth(`/api/admin/chats${qs}`),
+    activity: (qs = "") => fetchWithAuth(`/api/admin/activity${qs}`),
   },
 };
