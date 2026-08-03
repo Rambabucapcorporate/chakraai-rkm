@@ -31,15 +31,30 @@ class Settings:
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-    # LLM Models
-    EMBED_MODEL_NAME: str = "text-embedding-3-small"
-    OLLAMA_TEXT_MODEL: str = "qwen3:4b"          # kept as fallback for text
-    OLLAMA_VISION_MODEL: str = "qwen2.5vl:7b"    # vision (rare) stays on Ollama
+    # LLM backend: "vllm" (high concurrency) or "ollama"
+    LLM_BACKEND: str = os.getenv("LLM_BACKEND", "vllm")
 
-    # vLLM (primary text engine — OpenAI-compatible, local, continuous batching)
+    # vLLM (primary text engine — handles parallel load)
     VLLM_BASE_URL: str = os.getenv("VLLM_BASE_URL", "http://127.0.0.1:8001/v1")
-    VLLM_TEXT_MODEL: str = os.getenv("VLLM_TEXT_MODEL", "qwen3-4b")
-    VLLM_MAX_TOKENS: int = int(os.getenv("VLLM_MAX_TOKENS", "1200"))
+    VLLM_MODEL: str = os.getenv("VLLM_MODEL", "Qwen/Qwen3-4B")
+    VLLM_MAX_TOKENS: int = int(os.getenv("VLLM_MAX_TOKENS", "1536"))
+    VLLM_MAX_CONTEXT: int = int(os.getenv("VLLM_MAX_CONTEXT", "4096"))
+    VLLM_TIMEOUT: float = float(os.getenv("VLLM_TIMEOUT", "300"))
+
+    # RAG retrieval limits (keep prompt within vLLM context window)
+    RAG_N_RESULTS: int = int(os.getenv("RAG_N_RESULTS", "6"))
+    RAG_MAX_CONTEXT_CHARS: int = int(os.getenv("RAG_MAX_CONTEXT_CHARS", "8000"))
+
+    # Ollama (vision/image queries; fallback text engine)
+    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    OLLAMA_TEXT_MODEL: str = os.getenv("OLLAMA_TEXT_MODEL", "qwen3:4b")
+    OLLAMA_VISION_MODEL: str = os.getenv("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
+
+    # Embeddings & secondary OpenAI panel
+    EMBED_MODEL_NAME: str = "text-embedding-3-small"
+    OPENAI_SIDE_MODEL: str = os.getenv("OPENAI_SIDE_MODEL", "gpt-4o-mini")
+    OPENAI_SIDE_TIMEOUT: int = int(os.getenv("OPENAI_SIDE_TIMEOUT", "90"))
+    OPENAI_POOL_SIZE: int = int(os.getenv("OPENAI_POOL_SIZE", "200"))
 
     # Embeddings
     EMBEDDINGS_DIRECTORY: str = "."

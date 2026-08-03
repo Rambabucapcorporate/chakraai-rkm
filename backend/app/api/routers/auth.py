@@ -8,6 +8,7 @@ from app.core.security import verify_password, create_access_token
 from app.core.config import settings
 from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.schemas.token import Token
+from app.services.audit import log_activity
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -61,7 +62,9 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         data={"sub": db_user.username},
         expires_delta=access_token_expires
     )
-    
+
+    log_activity(db_user.userId, db_user.username, "login")
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
