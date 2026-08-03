@@ -32,6 +32,24 @@ def stats(db: Session = Depends(get_db), _a=Depends(require_admin)):
         "chats_today": sc("SELECT COUNT(*) FROM chat_log WHERE created_at >= CURDATE()"),
         "logins_today": sc("SELECT COUNT(*) FROM activity_log WHERE action='login' AND created_at >= CURDATE()"),
         "active_chat_users_today": sc("SELECT COUNT(DISTINCT user_id) FROM chat_log WHERE created_at >= CURDATE()"),
+        # student = user_type '2'; join on user_id (int) to avoid username collation mismatch
+        "active_students_today": sc(
+            "SELECT COUNT(DISTINCT c.user_id) FROM chat_log c JOIN user_master u ON c.user_id = u.userId "
+            "WHERE c.created_at >= CURDATE() AND u.user_type = '2'"),
+        "distinct_login_users_today": sc(
+            "SELECT COUNT(DISTINCT user_id) FROM activity_log WHERE action='login' AND created_at >= CURDATE()"),
+        # answer latency (populated for chats after latency logging was added)
+        "avg_answer_ms_today": sc(
+            "SELECT ROUND(AVG(latency_ms)) FROM chat_log WHERE created_at >= CURDATE() AND latency_ms IS NOT NULL"),
+        "answers_measured_today": sc(
+            "SELECT COUNT(*) FROM chat_log WHERE created_at >= CURDATE() AND latency_ms IS NOT NULL"),
+        "avg_answer_ms_7d": sc(
+            "SELECT ROUND(AVG(latency_ms)) FROM chat_log WHERE created_at >= (CURDATE() - INTERVAL 6 DAY) AND latency_ms IS NOT NULL"),
+        # thumbs-up/down feedback (RL / quality signal)
+        "feedback_up_today": sc("SELECT COUNT(*) FROM chat_log WHERE created_at >= CURDATE() AND feedback = 1"),
+        "feedback_down_today": sc("SELECT COUNT(*) FROM chat_log WHERE created_at >= CURDATE() AND feedback = -1"),
+        "feedback_up_total": sc("SELECT COUNT(*) FROM chat_log WHERE feedback = 1"),
+        "feedback_down_total": sc("SELECT COUNT(*) FROM chat_log WHERE feedback = -1"),
     }
 
 

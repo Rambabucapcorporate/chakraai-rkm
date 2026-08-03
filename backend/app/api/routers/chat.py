@@ -24,14 +24,16 @@ from app.services.llm_service import (
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from configure import get_subject_files, get_source_filters
-from app.services.audit import user_from_auth_header, save_chat_log, log_activity
+from app.services.audit import user_from_auth_header, save_chat_log, log_activity, save_feedback
 
 router = APIRouter(prefix="/api", tags=["Chat & Knowledge Base"])
 
 
 def _logged_stream(inner, user_id, username, question, model, endpoint):
-    """Pass a chat NDJSON stream through, accumulate the answer tokens, then log the Q&A."""
+    """Pass a chat NDJSON stream through, accumulate the answer tokens, then log the Q&A + latency."""
+    import time
     parts = []
+    _t0 = time.time()
     for chunk in inner:
         try:
             d = json.loads(chunk)
@@ -40,8 +42,22 @@ def _logged_stream(inner, user_id, username, question, model, endpoint):
         except Exception:
             pass
         yield chunk
-    save_chat_log(user_id, username, question, "".join(parts), model, endpoint)
+    _latency_ms = int((time.time() - _t0) * 1000)
+    _cid = save_chat_log(user_id, username, question, "".join(parts), model, endpoint, _latency_ms)
     log_activity(user_id, username, "chat", question)
+    if _cid:
+        # tell the client which row this answer is, so it can attach 👍/👎 feedback
+        yield json.dumps({"chat_id": _cid}) + "\n"
+
+
+@router.post("/feedback")
+async def feedback(request: Request, chat_id: int = Form(...), rating: int = Form(...)):
+    """Record a thumbs up (1) / down (-1) / clear (0) rating on an answer, for RL / quality review."""
+    if rating not in (1, -1, 0):
+        raise HTTPException(status_code=400, detail="rating must be 1, -1, or 0")
+    _uid, _uname = user_from_auth_header(request.headers.get("Authorization", ""))
+    ok = save_feedback(chat_id, rating, _uid)
+    return {"ok": ok}
 
 
 @router.get("/files")
