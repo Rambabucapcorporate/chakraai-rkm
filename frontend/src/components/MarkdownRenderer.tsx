@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check } from 'lucide-react';
@@ -56,7 +59,10 @@ const MarkdownRenderer = ({ content }: MarkdownRendererProps) => {
     return (
         <div className="markdown-body space-y-3 prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
             <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                // remarkMath with singleDollarTextMath:false → only $$…$$ renders as math, so
+                // currency like "₹1 = $0.012 and €1 = $1.08" is never mis-parsed as a formula.
+                remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                     code: CodeBlock,
                     p: ({ children }) => <p className="mb-3 leading-relaxed last:mb-0">{children}</p>,
