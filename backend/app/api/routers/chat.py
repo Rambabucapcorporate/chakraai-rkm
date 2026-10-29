@@ -230,20 +230,95 @@ async def chat(
             f"Context:\n{context}\n\nQuestion: {query}\n"
         )
 
+        # --- Secondary AI: general-knowledge fallback (no course-material match) -----------
+        def _general_knowledge_answer():
+            """Answer from the model's own knowledge when the course materials don't cover it.
+            Clearly labelled and deliberately UNCITED, so grounded vs. general stays distinguishable."""
+            gk_prompt = (
+                "You are a knowledgeable academic tutor for undergraduate students at "
+                "Ramakrishna Mission Vivekananda College. The student's question was NOT found in "
+                "their uploaded course materials, so answer it from your own general knowledge.\n\n"
+                "RULES:\n"
+                "1. Answer accurately, clearly and in reasonable depth at an undergraduate level, in your own words.\n"
+                "2. Only answer academic, educational or study-related questions. If the question is not a "
+                "study/academic question, briefly and politely say you can only help with academic topics.\n"
+                "3. Do NOT invent citations, sources or page numbers — you have none.\n"
+                "4. Format with Markdown: headers, **bold** key terms, bullet points, and tables where useful.\n"
+                "5. Do NOT output chain-of-thought or any thinking tags.\n\n"
+                f"Question: {query}\n"
+            )
+            yield json.dumps({"answer_mode": "general_knowledge"}) + "\n"
+            yield json.dumps({"token": "> 📖 *Not found in your course materials — here is a general answer from Chakra AI:*\n\n"}) + "\n"
+            _holder = [""]
+            try:
+                for _c in _rag_stream_vllm(gk_prompt, _holder):
+                    yield _c
+            except Exception as e:
+                print(f"[chat] general-knowledge fallback failed: {e}")
+                yield json.dumps({"token": "Sorry, the answer engine is busy. Please retry."}) + "\n"
+            yield json.dumps({"suggested_questions": []}) + "\n"
+
+        # No subject context retrieved at all → the grounded pass can only refuse. Go straight
+        # to the general-knowledge answer instead of making the student wait for a refusal.
+        if not context.strip():
+            yield from _general_knowledge_answer()
+            return
+
+        # Stream the grounded answer, but watch the opening tokens: if it begins to refuse
+        # ("I don't have that information ..."), discard it and swap to the general-knowledge
+        # answer. A real grounded answer never matches a refusal marker in its first ~60 chars,
+        # so it flushes and streams in real time with no perceptible delay.
+        primary = generate_response_stream(final_prompt, None, [], raw_query=None, subject=subject)
         answer_parts = []
+        buffer = ""
+        decided = False
+        refused = False
         try:
-            # raw_query=None → no OpenAI "Additional AI" side panel (suggested_questions still emitted)
-            for chunk in generate_response_stream(final_prompt, None, [], raw_query=None, subject=subject):
+            for chunk in primary:
+                tok = None
                 try:
-                    _d = json.loads(chunk)
-                    if _d.get("token"):
-                        answer_parts.append(_d["token"])
+                    tok = json.loads(chunk).get("token")
                 except Exception:
                     pass
-                yield chunk
+
+                if tok is None:
+                    # non-token frame (e.g. suggested_questions) — forward only once committed
+                    if decided and not refused:
+                        yield chunk
+                    continue
+
+                if decided:
+                    answer_parts.append(tok)
+                    yield chunk
+                    continue
+
+                # still deciding grounded vs. refusal from the opening tokens
+                buffer += tok
+                if any(m in buffer.strip().lower() for m in _REFUSAL_MARKERS):
+                    refused = True
+                    break
+                if len(buffer) >= 60:
+                    decided = True
+                    answer_parts.append(buffer)
+                    yield json.dumps({"token": buffer}) + "\n"
         except Exception as e:
             print(f"[chat] generation failed: {e}")
-            yield json.dumps({"token": "Sorry, the answer engine is busy. Please retry."}) + "\n"
+            if not decided and not refused:
+                yield json.dumps({"token": "Sorry, the answer engine is busy. Please retry."}) + "\n"
+                return
+
+        if refused:
+            try:
+                primary.close()
+            except Exception:
+                pass
+            yield from _general_knowledge_answer()
+            return
+
+        # Grounded answer that ended before hitting the 60-char flush threshold.
+        if not decided and buffer:
+            answer_parts.append(buffer)
+            yield json.dumps({"token": buffer}) + "\n"
 
         # Only surface citations when the answer is grounded (strip the auto-appended sections first).
         answer_main = _re.split(r"🧐 Explore Further:|### 📚 Reference Chunks", "".join(answer_parts))[0]
